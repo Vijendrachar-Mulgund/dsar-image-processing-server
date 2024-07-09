@@ -1,0 +1,9 @@
+# Environment
+venv
+
+# Test data
+*.mp4
+
+# Cache
+__pycache__
+.DS_Store
