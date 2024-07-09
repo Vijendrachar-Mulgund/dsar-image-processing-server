@@ -1,3 +1,6 @@
 opencv-python==4.10.0.84
 ultralytics==8.2.41
 Flask==3.0.3
+
+dill==0.3.8
+lapx==0.5.9.post1
