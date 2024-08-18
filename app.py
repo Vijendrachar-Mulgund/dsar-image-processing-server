@@ -5,6 +5,7 @@ import threading
 import uuid
 import os
 import signal
+import boto3
 
 from flask import Flask, Response
 from ultralytics import YOLO
@@ -15,12 +16,22 @@ from config import (SERVER_HOST, SERVER_SOCKET_PORT, SERVER_FLASK_PORT, SERVER_S
 
 app = Flask(__name__)
 
+# Create an S3 client
+s3 = boto3.client('s3')
+
+# Define bucket and file names
+bucket_name = 'lbu-dsar'
+remote_file = 'remote_file.mp4'
+
 # Shared variable to store the most recent frame
 current_frame = None
 frame_lock = threading.Lock()
 
 # Create a new Case ID
 case_id = None
+
+# Local file path
+local_file = None
 
 # Initialise the YOLO model
 model = YOLO("ai-models/dsar_yolo_v8n_1280p.pt")
@@ -55,6 +66,7 @@ def receive_video(client_conn, server_conn):
     global current_frame
     global case_id
     global total_number_of_people_found
+    global local_file
 
     case_id = str(uuid.uuid4())
     total_number_of_people_found = []
@@ -96,6 +108,16 @@ def receive_video(client_conn, server_conn):
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+
+        # Create the file name to be stored
+        local_file = f'recordings/{case_id}.mp4'
+
+        # Upload the file
+        s3.upload_file(local_file, bucket_name, remote_file)
+
+        # Construct the URL
+        url = f"https://{bucket_name}.s3.amazonaws.com/{remote_file}"
+        print(f"File uploaded successfully. Access it at: {url}")
 
     client_conn.close()
     server_conn.close()
