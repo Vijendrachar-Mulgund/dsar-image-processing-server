@@ -1,4 +1,6 @@
 import socket
+import time
+
 import cv2
 import numpy as np
 import threading
@@ -9,6 +11,7 @@ import boto3
 
 from flask import Flask, Response
 from ultralytics import YOLO
+from pathlib import Path
 
 from config import (SERVER_HOST, SERVER_SOCKET_PORT, SERVER_FLASK_PORT, SERVER_SOCKET_ADDRESS, SERVER_MAX_QUEUE_SIZE,
                     IMAGE_ENCODE_DECODE_FORMAT, VIDEO_IMAGE_ENCODE_DECODE_FORMAT,
@@ -21,7 +24,7 @@ s3 = boto3.client('s3')
 
 # Define bucket and file names
 bucket_name = 'lbu-dsar'
-remote_file = 'remote_file.mp4'
+remote_file = None
 
 # Shared variable to store the most recent frame
 current_frame = None
@@ -67,6 +70,7 @@ def receive_video(client_conn, server_conn):
     global case_id
     global total_number_of_people_found
     global local_file
+    global remote_file
 
     case_id = str(uuid.uuid4())
     total_number_of_people_found = []
@@ -75,7 +79,8 @@ def receive_video(client_conn, server_conn):
     resolution = client_conn.recv(1024).decode()
     width, height = map(int, resolution.split(','))
 
-    fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
+    fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    Path("recordings").mkdir(parents=True, exist_ok=True)
     writer = cv2.VideoWriter(f"recordings/{case_id}.mp4", fourcc, VIDEO_RECORDING_FRAME_RATE, (int(width), int(height)))
 
     while True:
@@ -109,19 +114,34 @@ def receive_video(client_conn, server_conn):
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-        # Create the file name to be stored
-        local_file = f'recordings/{case_id}.mp4'
-
-        # Upload the file
-        s3.upload_file(local_file, bucket_name, remote_file)
-
-        # Construct the URL
-        url = f"https://{bucket_name}.s3.amazonaws.com/{remote_file}"
-        print(f"File uploaded successfully. Access it at: {url}")
+    writer.release()
+    print("Video Exited")
 
     client_conn.close()
     server_conn.close()
     cv2.destroyAllWindows()
+
+    time.sleep(5)
+
+    print("Uploading file to S3...")
+
+    # Create the file name to be stored
+    local_file = f'recordings/{case_id}.mp4'
+    remote_file = f'{case_id}.mp4'
+
+    # Upload the file
+    extra_args = {
+        'ContentType': 'video/mp4',
+        'Metadata': {
+            'Content-Disposition': 'inline'
+        },
+    }
+
+    s3.upload_file(local_file, bucket_name, remote_file, ExtraArgs=extra_args)
+
+    # Construct the URL
+    print(f"Video File uploaded successfully to Amazon S3 bucket {bucket_name}.")
+
     stop_server()
 
 
