@@ -1,5 +1,6 @@
 # Environment
 venv
+.env
 
 # Test data
 *.mp4

@@ -12,18 +12,25 @@ import boto3
 from flask import Flask, Response
 from ultralytics import YOLO
 from pathlib import Path
+from dotenv import load_dotenv
 
 from config import (SERVER_HOST, SERVER_SOCKET_PORT, SERVER_FLASK_PORT, SERVER_SOCKET_ADDRESS, SERVER_MAX_QUEUE_SIZE,
                     IMAGE_ENCODE_DECODE_FORMAT, VIDEO_IMAGE_ENCODE_DECODE_FORMAT,
-                    VIDEO_RECORDING_FRAME_RATE, SOCKET_TRANSMISSION_SIZE)
+                    VIDEO_RECORDING_FRAME_RATE, SOCKET_TRANSMISSION_SIZE, YOLOv8_MODEL, VIDEO_RECORDING_CODEC_FORMAT,
+                    YOLOv8_MINIMUM_CONFIDENCE_SCORE, AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_TYPE,
+                    AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_DISPOSITION)
 
 app = Flask(__name__)
+
+# Load the Environment variables
+load_dotenv()
 
 # Create an S3 client
 s3 = boto3.client('s3')
 
 # Define bucket and file names
-bucket_name = 'lbu-dsar'
+
+bucket_name = os.getenv('AWS_S3_BUCKET_NAME')
 remote_file = None
 
 # Shared variable to store the most recent frame
@@ -37,7 +44,7 @@ case_id = None
 local_file = None
 
 # Initialise the YOLO model
-model = YOLO("ai-models/dsar_yolo_v8n_1280p.pt")
+model = YOLO(YOLOv8_MODEL)
 
 # Store the total number of people / Re-initialise at every connection
 total_number_of_people_found = []
@@ -60,6 +67,7 @@ def init_socket_server():
 
     print("Got a connection from {}".format(client_address))
 
+    # Initiate the Video receiving process
     receive_video(client_connection, socket_server)
 
     return client_connection, socket_server
@@ -76,10 +84,10 @@ def receive_video(client_conn, server_conn):
     total_number_of_people_found = []
 
     # Receive resolution from server
-    resolution = client_conn.recv(1024).decode()
+    resolution = client_conn.recv(SOCKET_TRANSMISSION_SIZE).decode()
     width, height = map(int, resolution.split(','))
 
-    fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    fourcc = cv2.VideoWriter_fourcc(*VIDEO_RECORDING_CODEC_FORMAT)
     Path("recordings").mkdir(parents=True, exist_ok=True)
     writer = cv2.VideoWriter(f"recordings/{case_id}.mp4", fourcc, VIDEO_RECORDING_FRAME_RATE, (int(width), int(height)))
 
@@ -115,7 +123,7 @@ def receive_video(client_conn, server_conn):
             break
 
     writer.release()
-    print("Video Exited")
+    print("Video recording is completed ✅")
 
     client_conn.close()
     server_conn.close()
@@ -123,25 +131,26 @@ def receive_video(client_conn, server_conn):
 
     time.sleep(5)
 
-    print("Uploading file to S3...")
+    print("Uploading file to S3 🚀 ...")
 
     # Create the file name to be stored
     local_file = f'recordings/{case_id}.mp4'
     remote_file = f'{case_id}.mp4'
 
-    # Upload the file
     extra_args = {
-        'ContentType': 'video/mp4',
+        'ContentType': AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_TYPE,
         'Metadata': {
-            'Content-Disposition': 'inline'
+            'Content-Disposition': AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_DISPOSITION
         },
     }
 
+    # Upload the file
     s3.upload_file(local_file, bucket_name, remote_file, ExtraArgs=extra_args)
 
     # Construct the URL
-    print(f"Video File uploaded successfully to Amazon S3 bucket {bucket_name}.")
+    print(f"Video File uploaded successfully to Amazon S3 bucket {bucket_name} ✅")
 
+    # Exit the server to restart
     stop_server()
 
 
@@ -181,7 +190,7 @@ def frame_track(frame):
                 confidence = box.conf.item()  # Confidence score
                 obj_cls = box.cls.item()  # Class item
 
-                if confidence > 0.75:
+                if confidence > YOLOv8_MINIMUM_CONFIDENCE_SCORE:
                     total_number_of_people_found.append(confidence)
 
                 print(f"Confidence: {confidence:.2f}")
