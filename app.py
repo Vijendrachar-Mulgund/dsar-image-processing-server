@@ -15,7 +15,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from config import (SERVER_HOST, SERVER_SOCKET_PORT, SERVER_FLASK_PORT, SERVER_SOCKET_ADDRESS, SERVER_MAX_QUEUE_SIZE,
-                    IMAGE_ENCODE_DECODE_FORMAT, VIDEO_IMAGE_ENCODE_DECODE_FORMAT,
+                    IMAGE_ENCODE_DECODE_FORMAT, VIDEO_IMAGE_ENCODE_DECODE_FORMAT, AWS_S3_SERVICE_NAME,
                     VIDEO_RECORDING_FRAME_RATE, SOCKET_TRANSMISSION_SIZE, YOLOv8_MODEL, VIDEO_RECORDING_CODEC_FORMAT,
                     YOLOv8_MINIMUM_CONFIDENCE_SCORE, AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_TYPE,
                     AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_DISPOSITION)
@@ -26,11 +26,16 @@ app = Flask(__name__)
 load_dotenv()
 
 # Create an S3 client
-s3 = boto3.client('s3')
+s3 = boto3.client(
+        service_name=AWS_S3_SERVICE_NAME,
+        region_name=os.getenv('AWS_S3_BUCKET_REGION'),
+        aws_access_key_id=os.getenv('AWS_S3_BUCKET_ACCESS_KEY'),
+        aws_secret_access_key=os.getenv('AWS_S3_BUCKET_SECRET_KEY')
+)
 
 # Define bucket and file names
-
 bucket_name = os.getenv('AWS_S3_BUCKET_NAME')
+print("Test for ENV ->", bucket_name)
 remote_file = None
 
 # Shared variable to store the most recent frame

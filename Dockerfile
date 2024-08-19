@@ -9,7 +9,11 @@ COPY . /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
-    libglib2.0-0
+    libglib2.0-0 \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    libv4l-dev
 
 # Run the command to install any necessary dependencies
 RUN pip3 install --no-cache-dir -r requirements.txt

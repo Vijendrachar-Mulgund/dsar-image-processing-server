@@ -9,3 +9,5 @@ services:
     ports:
       - "9999:9999"
       - "5000:5000"
+    env_file: '.env'
+
