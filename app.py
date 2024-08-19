@@ -94,7 +94,7 @@ def receive_video(client_conn, server_conn):
 
     fourcc = cv2.VideoWriter_fourcc(*VIDEO_RECORDING_CODEC_FORMAT)
     Path("recordings").mkdir(parents=True, exist_ok=True)
-    writer = cv2.VideoWriter(f"recordings/{case_id}.mp4", fourcc, VIDEO_RECORDING_FRAME_RATE, (int(width), int(height)))
+    writer = cv2.VideoWriter(f"recordings/{case_id}.webm", fourcc, VIDEO_RECORDING_FRAME_RATE, (int(width), int(height)))
 
     while True:
         # Receive data from the client
@@ -139,8 +139,8 @@ def receive_video(client_conn, server_conn):
     print("Uploading file to S3 🚀 ...")
 
     # Create the file name to be stored
-    local_file = f'recordings/{case_id}.mp4'
-    remote_file = f'{case_id}.mp4'
+    local_file = f'recordings/{case_id}.webm'
+    remote_file = f'{case_id}.webm'
 
     extra_args = {
         'ContentType': AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_TYPE,
