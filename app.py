@@ -1,5 +1,6 @@
 import socket
 import time
+import datetime
 
 import cv2
 import numpy as np
@@ -35,8 +36,12 @@ s3 = boto3.client(
 
 # Define bucket and file names
 bucket_name = os.getenv('AWS_S3_BUCKET_NAME')
-print("Test for ENV ->", bucket_name)
+
+# Set path for remote file
 remote_file = None
+
+# Server running status
+server_running = True
 
 # Shared variable to store the most recent frame
 current_frame = None
@@ -217,11 +222,27 @@ def index():
         """
 
 
-@app.route('/video_feed')
+@app.route('/video_feed', methods=["GET"])
 def video_feed():
     return Response(generate_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
+
+@app.route('/health-check', methods=['GET'])
+def health_check():
+    return {
+        "statusCode": 200,
+        "message": "The server is running ✅",
+        "data": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+@app.route('/server-shutdown/<admin_key>', methods=['POST'])
+def shutdown(admin_key):
+    global server_running
+    if admin_key:
+        server_running = False
+        print("Server shutting down...")
+        os.kill(os.getpid(), signal.SIGTERM)
 
 def stop_server():
     os.kill(os.getpid(), signal.SIGINT)
@@ -229,7 +250,7 @@ def stop_server():
 
 if __name__ == "__main__":
     try:
-        while True:
+        while server_running:
             # Start Socket server
             receive_thread = threading.Thread(target=init_socket_server)
             receive_thread.daemon = True
