@@ -18,7 +18,7 @@ from config import (SERVER_HOST, SERVER_SOCKET_PORT, SERVER_FLASK_PORT, SERVER_S
                     IMAGE_ENCODE_DECODE_FORMAT, VIDEO_IMAGE_ENCODE_DECODE_FORMAT, AWS_S3_SERVICE_NAME,
                     VIDEO_RECORDING_FRAME_RATE, SOCKET_TRANSMISSION_SIZE, YOLOv8_MODEL, VIDEO_RECORDING_CODEC_FORMAT,
                     YOLOv8_MINIMUM_CONFIDENCE_SCORE, AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_TYPE,
-                    AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_DISPOSITION)
+                    AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_DISPOSITION, VIDEO_RECORDING_FILE_FORMAT)
 
 app = Flask(__name__)
 
@@ -94,7 +94,7 @@ def receive_video(client_conn, server_conn):
 
     fourcc = cv2.VideoWriter_fourcc(*VIDEO_RECORDING_CODEC_FORMAT)
     Path("recordings").mkdir(parents=True, exist_ok=True)
-    writer = cv2.VideoWriter(f"recordings/{case_id}.webm", fourcc, VIDEO_RECORDING_FRAME_RATE, (int(width), int(height)))
+    writer = cv2.VideoWriter(f"recordings/{case_id}.{VIDEO_RECORDING_FILE_FORMAT}", fourcc, VIDEO_RECORDING_FRAME_RATE, (int(width), int(height)))
 
     while True:
         # Receive data from the client
@@ -139,8 +139,8 @@ def receive_video(client_conn, server_conn):
     print("Uploading file to S3 🚀 ...")
 
     # Create the file name to be stored
-    local_file = f'recordings/{case_id}.webm'
-    remote_file = f'{case_id}.webm'
+    local_file = f'recordings/{case_id}.{VIDEO_RECORDING_FILE_FORMAT}'
+    remote_file = f'{case_id}.{VIDEO_RECORDING_FILE_FORMAT}'
 
     extra_args = {
         'ContentType': AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_TYPE,
