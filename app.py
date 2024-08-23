@@ -18,8 +18,9 @@ from dotenv import load_dotenv
 from config import (SERVER_HOST, SERVER_SOCKET_PORT, SERVER_FLASK_PORT, SERVER_SOCKET_ADDRESS, SERVER_MAX_QUEUE_SIZE,
                     IMAGE_ENCODE_DECODE_FORMAT, VIDEO_IMAGE_ENCODE_DECODE_FORMAT, AWS_S3_SERVICE_NAME,
                     VIDEO_RECORDING_FRAME_RATE, SOCKET_TRANSMISSION_SIZE, YOLOv8_MODEL, VIDEO_RECORDING_CODEC_FORMAT,
-                    YOLOv8_MINIMUM_CONFIDENCE_SCORE, AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_TYPE,
-                    AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_DISPOSITION, VIDEO_RECORDING_FILE_FORMAT)
+                    YOLOv8_MINIMUM_CONFIDENCE_SCORE, AWS_S3_STORE_OBJECT_PARAMETER_VIDEO_CONTENT_TYPE,
+                    IMAGE_FILE_FORMAT, AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_DISPOSITION, VIDEO_RECORDING_FILE_FORMAT,
+                    AWS_S3_STORE_OBJECT_PARAMETER_IMAGE_CONTENT_TYPE)
 
 app = Flask(__name__)
 
@@ -37,9 +38,6 @@ s3 = boto3.client(
 # Define bucket and file names
 bucket_name = os.getenv('AWS_S3_BUCKET_NAME')
 
-# Set path for remote file
-remote_file = None
-
 # Server running status
 server_running = True
 
@@ -47,11 +45,11 @@ server_running = True
 current_frame = None
 frame_lock = threading.Lock()
 
+# Save the Image where the people are found
+final_image = None
+
 # Create a new Case ID
 case_id = None
-
-# Local file path
-local_file = None
 
 # Initialise the YOLO model
 model = YOLO(YOLOv8_MODEL)
@@ -87,8 +85,7 @@ def receive_video(client_conn, server_conn):
     global current_frame
     global case_id
     global total_number_of_people_found
-    global local_file
-    global remote_file
+    global final_image
 
     case_id = str(uuid.uuid4())
     total_number_of_people_found = []
@@ -98,8 +95,17 @@ def receive_video(client_conn, server_conn):
     width, height = map(int, resolution.split(','))
 
     fourcc = cv2.VideoWriter_fourcc(*VIDEO_RECORDING_CODEC_FORMAT)
+
+    # Create the folder if it doesn't exist
     Path("recordings").mkdir(parents=True, exist_ok=True)
-    writer = cv2.VideoWriter(f"recordings/{case_id}.{VIDEO_RECORDING_FILE_FORMAT}", fourcc, VIDEO_RECORDING_FRAME_RATE, (int(width), int(height)))
+    Path("images").mkdir(parents=True, exist_ok=True)
+
+    # Begin the video writer
+    writer = cv2.VideoWriter(f"recordings/{case_id}-video.{VIDEO_RECORDING_FILE_FORMAT}", fourcc,
+                             VIDEO_RECORDING_FRAME_RATE, (int(width), int(height)))
+
+    # Image file path
+    image_file_path = f"images/{case_id}-image.{IMAGE_FILE_FORMAT}"
 
     while True:
         # Receive data from the client
@@ -135,33 +141,61 @@ def receive_video(client_conn, server_conn):
     writer.release()
     print("Video recording is completed ✅")
 
+
+    cv2.imwrite(image_file_path, final_image)
+    print("The Image file is saved ✅")
+
     client_conn.close()
     server_conn.close()
     cv2.destroyAllWindows()
 
+    # Pause for the video to finish encoding
     time.sleep(5)
+
+    # Upload the video to AWS
+    upload_video_to_cloud()
 
     print("Uploading file to S3 🚀 ...")
 
-    # Create the file name to be stored
-    local_file = f'recordings/{case_id}.{VIDEO_RECORDING_FILE_FORMAT}'
-    remote_file = f'{case_id}.{VIDEO_RECORDING_FILE_FORMAT}'
+    # Exit the server to restart
+    stop_server()
 
-    extra_args = {
-        'ContentType': AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_TYPE,
+def upload_video_to_cloud():
+    global case_id
+
+    # Create the file name to be stored
+    local_video_file = f'recordings/{case_id}-video.{VIDEO_RECORDING_FILE_FORMAT}'
+    remote_video_file = f'{case_id}-video.{VIDEO_RECORDING_FILE_FORMAT}'
+
+    # Create the file name to be stored
+    local_image_file = f'images/{case_id}-image.{IMAGE_FILE_FORMAT}'
+    remote_image_file = f'{case_id}-image.{IMAGE_FILE_FORMAT}'
+
+    extra_video_args = {
+        'ContentType': AWS_S3_STORE_OBJECT_PARAMETER_VIDEO_CONTENT_TYPE,
         'Metadata': {
             'Content-Disposition': AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_DISPOSITION
         },
     }
 
-    # Upload the file
-    s3.upload_file(local_file, bucket_name, remote_file, ExtraArgs=extra_args)
+    # Upload the video file
+    s3.upload_file(local_video_file, bucket_name, remote_video_file, ExtraArgs=extra_video_args)
 
-    # Construct the URL
+    # Acknowledge
     print(f"Video File uploaded successfully to Amazon S3 bucket {bucket_name} ✅")
 
-    # Exit the server to restart
-    stop_server()
+    extra_image_args = {
+        'ContentType': AWS_S3_STORE_OBJECT_PARAMETER_IMAGE_CONTENT_TYPE,
+        'Metadata': {
+            'Content-Disposition': AWS_S3_STORE_OBJECT_PARAMETER_CONTENT_DISPOSITION
+        }
+    }
+
+    # Upload the Image file
+    s3.upload_file(local_image_file, bucket_name, remote_image_file, ExtraArgs=extra_image_args)
+
+    # Acknowledge
+    print(f"Image File uploaded successfully to Amazon S3 bucket {bucket_name} ✅")
 
 
 def generate_frames():
@@ -187,6 +221,8 @@ def generate_frames():
 
 def frame_track(frame):
     global model
+    global final_image
+
     # Apply the YOLOv8 model for Object detection
     result = model.track(frame)
     updated_frame = result[0].plot()
@@ -202,6 +238,7 @@ def frame_track(frame):
 
                 if confidence > YOLOv8_MINIMUM_CONFIDENCE_SCORE:
                     total_number_of_people_found.append(confidence)
+                    final_image = frame
 
                 print(f"Confidence: {confidence:.2f}")
                 print(f"Class: {obj_cls:.2f}")

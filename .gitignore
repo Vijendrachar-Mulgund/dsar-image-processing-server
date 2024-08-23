@@ -5,6 +5,8 @@ venv
 # Test data
 *.mp4
 *.webm
+*.jpg
+*.jpeg
 
 # Cache
 __pycache__
