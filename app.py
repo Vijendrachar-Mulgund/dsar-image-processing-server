@@ -152,10 +152,10 @@ def receive_video(client_conn, server_conn):
     # Pause for the video to finish encoding
     time.sleep(5)
 
+    print("Uploading file to S3 🚀 ...")
+
     # Upload the video to AWS
     upload_video_to_cloud()
-
-    print("Uploading file to S3 🚀 ...")
 
     # Exit the server to restart
     stop_server()
