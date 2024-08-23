@@ -1,3 +1,4 @@
+import json
 import socket
 import time
 import datetime
@@ -5,10 +6,10 @@ import datetime
 import cv2
 import numpy as np
 import threading
-import uuid
 import os
 import signal
 import boto3
+import requests
 
 from flask import Flask, Response
 from ultralytics import YOLO
@@ -60,6 +61,8 @@ total_number_of_people_found = []
 
 # Server Initialization
 def init_socket_server():
+    global case_id
+
     # Create a socket object
     socket_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -75,6 +78,28 @@ def init_socket_server():
 
     print("Got a connection from {}".format(client_address))
 
+    try:
+        # Get the Case ID
+        create_case_payload = {
+            'title': 'This is a New Missing Persons Case',
+            'description': 'More details coming soon',
+            'isLive': True,
+            'liveVideoURL': os.getenv('WEB_LIVE_VIDEO_URL')
+        }
+
+
+        create_case_response = requests.post(f'{os.getenv('WEB_PORTAL_URL')}/case/create-new-case',
+                                             json=create_case_payload)
+
+        case_response = create_case_response.json()
+
+        print("New Case created ✅ _id", case_response['case']['_id'])
+
+        case_id = case_response['case']['_id']
+
+    except Exception as error:
+        print("Something went wrong : ", error)
+
     # Initiate the Video receiving process
     receive_video(client_connection, socket_server)
 
@@ -87,7 +112,6 @@ def receive_video(client_conn, server_conn):
     global total_number_of_people_found
     global final_image
 
-    case_id = str(uuid.uuid4())
     total_number_of_people_found = []
 
     # Receive resolution from server
