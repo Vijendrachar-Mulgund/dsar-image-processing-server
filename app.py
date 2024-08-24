@@ -1,4 +1,3 @@
-import json
 import socket
 import time
 import datetime
@@ -58,6 +57,11 @@ model = YOLO(YOLOv8_MODEL)
 # Store the total number of people / Re-initialise at every connection
 total_number_of_people_found = []
 
+# Mock a registered drone
+registered_drone_id = '66c933d3464fcfba82454de3'
+
+# Location Coordinates # Longitude, Latitude
+location_coordinates = [-2.521287, 54.040087]
 
 # Server Initialization
 def init_socket_server():
@@ -111,6 +115,7 @@ def receive_video(client_conn, server_conn):
     global case_id
     global total_number_of_people_found
     global final_image
+    global location_coordinates
 
     total_number_of_people_found = []
 
@@ -181,8 +186,31 @@ def receive_video(client_conn, server_conn):
     # Upload the video to AWS
     upload_video_to_cloud()
 
+    try:
+        # Initiate the AI call
+        initiate_ai_chat_payload = {
+            'location': {
+                "type": "Point",
+                "coordinates": location_coordinates
+            },
+            "isLive": False,
+            "imageURL": f'{os.getenv('AWS_CLOUDFRONT_URL')}/{case_id}-image.{IMAGE_FILE_FORMAT}',
+            "numberOfPeopleFound": len(total_number_of_people_found),
+            "droneId": registered_drone_id,
+            "videoURL": f'{os.getenv('AWS_CLOUDFRONT_URL')}/{case_id}-video.{VIDEO_RECORDING_FILE_FORMAT}'
+        }
+
+        print("Initiated the API Call to the AI 🤖")
+
+        requests.put(f'{os.getenv('WEB_PORTAL_URL')}/case/initiate-ai-checklist/{case_id}',
+                      json=initiate_ai_chat_payload)
+
+    except Exception as aiError:
+        print("The AI could not generate a response, Please try again", aiError)
+
     # Exit the server to restart
     stop_server()
+
 
 def upload_video_to_cloud():
     global case_id
@@ -253,6 +281,8 @@ def frame_track(frame):
 
     # Access confidence scores
     for res in result:
+        global total_number_of_people_found
+
         boxes = res.boxes  # Boxes object for bounding box outputs
 
         if len(boxes) > len(total_number_of_people_found):
