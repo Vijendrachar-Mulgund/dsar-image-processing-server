@@ -62,7 +62,7 @@ total_number_of_people_found = []
 registered_drone_id = '66c933d3464fcfba82454de3'
 
 # Location Coordinates # Longitude, Latitude
-location_coordinates = [-2.521287, 54.040087]
+location_coordinates = None
 
 # Server Initialization
 def init_socket_server():
@@ -158,7 +158,8 @@ def receive_video(client_conn, server_conn):
 
         except UnicodeDecodeError:
             location_array = pickle.loads(length)
-            print("The Image cannot be decoded!", location_array)
+            print("Location Received ✅", location_array, type(location_array), type(location_array[0]))
+            location_coordinates = location_array
             break
 
         if frame is not None:
@@ -202,6 +203,10 @@ def receive_video(client_conn, server_conn):
     upload_video_to_cloud()
 
     try:
+        if not location_coordinates or not total_number_of_people_found:
+            print("The necessary info is not present")
+            return
+
         # Initiate the AI call
         initiate_ai_chat_payload = {
             'location': {
@@ -215,7 +220,7 @@ def receive_video(client_conn, server_conn):
             "videoURL": f'{os.getenv('AWS_CLOUDFRONT_URL')}/{case_id}-video.{VIDEO_RECORDING_FILE_FORMAT}'
         }
 
-        print("Initiated the API Call to the AI 🤖")
+        print("All the information is available ✅ Initiated the API Call to the AI 🤖")
 
         requests.put(f'{os.getenv('WEB_PORTAL_URL')}/case/initiate-ai-checklist/{case_id}',
                       json=initiate_ai_chat_payload)
