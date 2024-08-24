@@ -9,6 +9,7 @@ import os
 import signal
 import boto3
 import requests
+import pickle
 
 from flask import Flask, Response
 from ultralytics import YOLO
@@ -139,19 +140,26 @@ def receive_video(client_conn, server_conn):
     while True:
         # Receive data from the client
         length = client_conn.recv(SOCKET_TRANSMISSION_SIZE)
-        if not length:
-            break
-        length = int(length.decode(IMAGE_ENCODE_DECODE_FORMAT))
-
-        data = b''
-        while len(data) < length:
-            packet = client_conn.recv(length - len(data))
-            if not packet:
+        print("The location ", length)
+        try :
+            if not length:
                 break
-            data += packet
+            length = int(length.decode(IMAGE_ENCODE_DECODE_FORMAT))
 
-        frame_data = np.frombuffer(data, dtype=np.uint8)
-        frame = cv2.imdecode(frame_data, cv2.IMREAD_COLOR)
+            data = b''
+            while len(data) < length:
+                packet = client_conn.recv(length - len(data))
+                if not packet:
+                    break
+                data += packet
+
+            frame_data = np.frombuffer(data, dtype=np.uint8)
+            frame = cv2.imdecode(frame_data, cv2.IMREAD_COLOR)
+
+        except UnicodeDecodeError:
+            location_array = pickle.loads(length)
+            print("The Image cannot be decoded!", location_array)
+            break
 
         if frame is not None:
             # Each frame processed here
@@ -163,6 +171,13 @@ def receive_video(client_conn, server_conn):
             # Update current_frame with the new frame
             with frame_lock:
                 current_frame = processed_frame
+
+            if len(total_number_of_people_found) == 0:
+                message = "NEXT_FRAME"
+                client_conn.sendall(message.encode(IMAGE_ENCODE_DECODE_FORMAT))
+            else:
+                message = "LOCATION_COORDINATES"
+                client_conn.sendall(message.encode(IMAGE_ENCODE_DECODE_FORMAT))
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
