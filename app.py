@@ -120,9 +120,8 @@ def receive_video(client_conn, server_conn):
 
     total_number_of_people_found = []
 
-    # Receive resolution from server
-    resolution = client_conn.recv(SOCKET_TRANSMISSION_SIZE).decode()
-    width, height = map(int, resolution.split(','))
+    width = 1280
+    height = 720
 
     fourcc = cv2.VideoWriter_fourcc(*VIDEO_RECORDING_CODEC_FORMAT)
 
