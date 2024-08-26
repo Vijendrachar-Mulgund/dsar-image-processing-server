@@ -93,7 +93,7 @@ def init_socket_server():
         }
 
 
-        create_case_response = requests.post(f'{os.getenv('WEB_PORTAL_URL')}/case/create-new-case',
+        create_case_response = requests.post(f'{os.getenv("WEB_PORTAL_URL")}/case/create-new-case',
                                              json=create_case_payload)
 
         case_response = create_case_response.json()
@@ -213,15 +213,15 @@ def receive_video(client_conn, server_conn):
                 "coordinates": location_coordinates
             },
             "isLive": False,
-            "imageURL": f'{os.getenv('AWS_CLOUDFRONT_URL')}/{case_id}-image.{IMAGE_FILE_FORMAT}',
+            "imageURL": f'{os.getenv("AWS_CLOUDFRONT_URL")}/{case_id}-image.{IMAGE_FILE_FORMAT}',
             "numberOfPeopleFound": len(total_number_of_people_found),
             "droneId": registered_drone_id,
-            "videoURL": f'{os.getenv('AWS_CLOUDFRONT_URL')}/{case_id}-video.{VIDEO_RECORDING_FILE_FORMAT}'
+            "videoURL": f'{os.getenv("AWS_CLOUDFRONT_URL")}/{case_id}-video.{VIDEO_RECORDING_FILE_FORMAT}'
         }
 
         print("All the information is available ✅ Initiated the API Call to the AI 🤖")
 
-        requests.put(f'{os.getenv('WEB_PORTAL_URL')}/case/initiate-ai-checklist/{case_id}',
+        requests.put(f'{os.getenv("WEB_PORTAL_URL")}/case/initiate-ai-checklist/{case_id}',
                       json=initiate_ai_chat_payload)
 
     except Exception as aiError:
