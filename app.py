@@ -202,27 +202,42 @@ def receive_video(client_conn, server_conn):
     upload_video_to_cloud()
 
     try:
-        if not location_coordinates or not total_number_of_people_found:
+        if  location_coordinates and len(total_number_of_people_found) > 0:
+            print("The necessary info is present")
+
+            # Initiate the AI call
+            initiate_ai_chat_payload = {
+                'location': {
+                    "type": "Point",
+                    "coordinates": location_coordinates
+                },
+                "description": f"Success ✅ {len(total_number_of_people_found)} people located",
+                "isLive": False,
+                "imageURL": f'{os.getenv("AWS_CLOUDFRONT_URL")}/{case_id}-image.{IMAGE_FILE_FORMAT}',
+                "numberOfPeopleFound": len(total_number_of_people_found),
+                "droneId": registered_drone_id,
+                "videoURL": f'{os.getenv("AWS_CLOUDFRONT_URL")}/{case_id}-video.{VIDEO_RECORDING_FILE_FORMAT}'
+            }
+
+            print("All the information is available ✅ Initiated the API Call to the AI 🤖")
+
+            requests.put(f'{os.getenv("WEB_PORTAL_URL")}/case/initiate-ai-checklist/{case_id}',
+                          json=initiate_ai_chat_payload)
+
+        elif len(total_number_of_people_found) == 0:
             print("The necessary info is not present")
-            return
 
-        # Initiate the AI call
-        initiate_ai_chat_payload = {
-            'location': {
-                "type": "Point",
-                "coordinates": location_coordinates
-            },
-            "isLive": False,
-            "imageURL": f'{os.getenv("AWS_CLOUDFRONT_URL")}/{case_id}-image.{IMAGE_FILE_FORMAT}',
-            "numberOfPeopleFound": len(total_number_of_people_found),
-            "droneId": registered_drone_id,
-            "videoURL": f'{os.getenv("AWS_CLOUDFRONT_URL")}/{case_id}-video.{VIDEO_RECORDING_FILE_FORMAT}'
-        }
+            # Initiate the AI call
+            initiate_case_update_payload = {
+                "isLive": False,
+                "droneId": registered_drone_id,
+                "numberOfPeopleFound": len(total_number_of_people_found),
+                "description": f"Failure ❌ No people located",
+                "status": "CLOSED"
+            }
 
-        print("All the information is available ✅ Initiated the API Call to the AI 🤖")
-
-        requests.put(f'{os.getenv("WEB_PORTAL_URL")}/case/initiate-ai-checklist/{case_id}',
-                      json=initiate_ai_chat_payload)
+            requests.put(f'{os.getenv("WEB_PORTAL_URL")}/case/update-case/{case_id}',
+                         json=initiate_case_update_payload)
 
     except Exception as aiError:
         print("The AI could not generate a response, Please try again", aiError)
@@ -293,6 +308,7 @@ def generate_frames():
 def frame_track(frame):
     global model
     global final_image
+    global total_number_of_people_found
 
     # Apply the YOLOv8 model for Object detection
     result = model.track(frame)
@@ -300,7 +316,6 @@ def frame_track(frame):
 
     # Access confidence scores
     for res in result:
-        global total_number_of_people_found
 
         boxes = res.boxes  # Boxes object for bounding box outputs
 
