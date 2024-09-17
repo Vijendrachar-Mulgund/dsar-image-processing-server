@@ -185,6 +185,9 @@ def receive_video(client_conn, server_conn):
     writer.release()
     print("Video recording is completed ✅")
 
+    if final_image is None:
+        final_image = frame
+
 
     cv2.imwrite(image_file_path, final_image)
     print("The Image file is saved ✅")
@@ -219,7 +222,7 @@ def receive_video(client_conn, server_conn):
                 "videoURL": f'{os.getenv("AWS_CLOUDFRONT_URL")}/{case_id}-video.{VIDEO_RECORDING_FILE_FORMAT}'
             }
 
-            print("All the information is available ✅ Initiated the API Call to the AI 🤖")
+            print(f"All the information is available ✅ Initiated the API Call to the AI 🤖 - Case ID - {case_id}")
 
             requests.put(f'{os.getenv("WEB_PORTAL_URL")}/case/initiate-ai-checklist/{case_id}',
                           json=initiate_ai_chat_payload)
@@ -233,6 +236,7 @@ def receive_video(client_conn, server_conn):
                 "droneId": registered_drone_id,
                 "numberOfPeopleFound": len(total_number_of_people_found),
                 "description": f"Failure ❌ No people located",
+                "videoURL": f'{os.getenv("AWS_CLOUDFRONT_URL")}/{case_id}-video.{VIDEO_RECORDING_FILE_FORMAT}',
                 "status": "CLOSED"
             }
 
